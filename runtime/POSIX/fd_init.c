@@ -133,12 +133,14 @@ void klee_init_fds(unsigned n_files, unsigned file_length,
 
   __exe_fs.max_failures = max_failures;
   if (__exe_fs.max_failures) {
+    __exe_fs.open_fail = malloc(sizeof(*__exe_fs.open_fail));
     __exe_fs.read_fail = malloc(sizeof(*__exe_fs.read_fail));
     __exe_fs.write_fail = malloc(sizeof(*__exe_fs.write_fail));
     __exe_fs.close_fail = malloc(sizeof(*__exe_fs.close_fail));
     __exe_fs.ftruncate_fail = malloc(sizeof(*__exe_fs.ftruncate_fail));
     __exe_fs.getcwd_fail = malloc(sizeof(*__exe_fs.getcwd_fail));
 
+    klee_make_symbolic(__exe_fs.open_fail, sizeof(*__exe_fs.open_fail), "open_fail");
     klee_make_symbolic(__exe_fs.read_fail, sizeof(*__exe_fs.read_fail), "read_fail");
     klee_make_symbolic(__exe_fs.write_fail, sizeof(*__exe_fs.write_fail), "write_fail");
     klee_make_symbolic(__exe_fs.close_fail, sizeof(*__exe_fs.close_fail), "close_fail");

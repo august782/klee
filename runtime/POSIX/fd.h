@@ -49,7 +49,7 @@ typedef struct {
   unsigned max_failures; 
 
   /* Which read, write etc. call should fail */
-  int *read_fail, *write_fail, *close_fail, *ftruncate_fail, *getcwd_fail;
+  int *open_fail, *read_fail, *write_fail, *close_fail, *ftruncate_fail, *getcwd_fail;
   int *chmod_fail, *fchmod_fail;
 } exe_file_system_t;
 

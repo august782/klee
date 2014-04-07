@@ -129,6 +129,8 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
   exe_disk_file_t *df;
   exe_file_t *f;
   int fd;
+  static int n_calls = 0;
+  n_calls++;
 
   for (fd = 0; fd < MAX_FDS; ++fd)
     if (!(__exe_env.fds[fd].flags & eOpen))
@@ -138,6 +140,14 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
     return -1;
   }
   
+  // Check for failing open here
+  if (__exe_fs.max_failures && *__exe_fs.open_fail == n_calls) {
+    printf("FAILING OPEN!!\n");
+    __exe_fs.max_failures--;
+    errno = EACCES;
+    return -1;
+  }
+
   f = &__exe_env.fds[fd];
 
   /* Should be the case if file was available, but just in case. */
