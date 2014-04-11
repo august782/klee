@@ -77,6 +77,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_get_errno", handleGetErrno, true),
   add("klee_is_symbolic", handleIsSymbolic, true),
   add("klee_make_symbolic", handleMakeSymbolic, false),
+  add("klee_permutate", handlePermutate, false),
   add("klee_mark_global", handleMarkGlobal, false),
   add("klee_merge", handleMerge, false),
   add("klee_prefer_cex", handlePreferCex, false),
@@ -716,6 +717,115 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
                                      "user.err");
     }
   }
+}
+
+void SpecialFunctionHandler::handlePermutate(ExecutionState &state,
+                                                KInstruction *target,
+                                                std::vector<ref<Expr> > &arguments) {
+  assert(arguments.size()==4 &&
+           "invalid number of arguments to klee_permutate");  
+
+  // Get kind of first and second argument
+  std::cout << "Kind of first is " << arguments[0]->getKind() << "\n";
+  std::cout << "Kind of second is " << arguments[1]->getKind() << "\n";
+
+  // Resolve both pointers to arrays to have <MemoryObject, ObjectState> list for each one
+  // They must be of the same length, that length being one
+  Executor::ExactResolutionList rl1, rl2;
+  executor.resolveExact(state, arguments[0], rl1, "permutate");
+  executor.resolveExact(state, arguments[1], rl2, "permutate");
+  assert(rl1.size()==rl2.size() && "two arrays are not of same length");
+  assert(rl1.size()==1 && "not single array");
+  std::cout << "Num in list is " << rl1.size() << "\n";
+
+  // Third argument is length of array, fourth argument is size of each element in array
+  ref<ConstantExpr> length = cast<ConstantExpr>(ZExtExpr::create(arguments[2], Context::get().getPointerWidth()));
+  ref<ConstantExpr> element_size = cast<ConstantExpr>(ZExtExpr::create(arguments[3], Context::get().getPointerWidth()));
+
+  // Get the actual objects associated with the locations
+  const MemoryObject *mo1, *mo2;
+  const ObjectState *os1, *os2;
+  ExecutionState *s1, *s2;
+  for (Executor::ExactResolutionList::iterator it = rl1.begin(), 
+         ie = rl1.end(); it != ie; ++it) {
+    mo1 = it->first.first;
+    os1 = it->first.second;
+    s1 = it->second;
+  }
+  for (Executor::ExactResolutionList::iterator it = rl2.begin(), 
+         ie = rl2.end(); it != ie; ++it) {
+    mo2 = it->first.first;
+    os2 = it->first.second;
+    s2 = it->second;
+  }
+  assert(mo1 && "First is not null");
+  assert(mo2 && "Second is not null");
+  std::cout << "Checkpoint 1\n";
+
+  // Check both arrays are of the same size
+  assert(mo1->getSizeExpr()->getZExtValue() == (length->getZExtValue() * element_size->getZExtValue()));
+  assert(mo2->getSizeExpr()->getZExtValue() == (length->getZExtValue() * element_size->getZExtValue()));
+
+  std::cout << "Checkpoint 2\n";
+
+  // Add constraints for elements in first array to permutations of elements in second array
+  std::vector<std::vector<unsigned> > perm_indices = generatePermutationIndices(length->getZExtValue());
+  ref<Expr> condition = EqExpr::create(ConstantExpr::create(0, Expr::Int64), ConstantExpr::create(1, Expr::Int64));
+  for (std::vector<std::vector<unsigned> >::iterator it = perm_indices.begin(); it != perm_indices.end(); ++it) {
+    ref<Expr> perm_cond = generatePermutationCondition(os1, os2, &(*it), element_size);   // it is a permutation order, create AND of array indices for it
+    condition = OrExpr::create(condition, perm_cond);
+  }
+  //ref<Expr> offset_a = MulExpr::create(ConstantExpr::create(0, Expr::Int64), element_size);
+  //ref<Expr> offset_b = MulExpr::create(ConstantExpr::create(0, Expr::Int64), element_size);
+  //ref<Expr> read_a = os1->read(offset_a, element_size->getZExtValue()*8);
+  //ref<Expr> read_b = os2->read(offset_b, element_size->getZExtValue()*8);
+  //ref<Expr> condition = EqExpr::create(read_a, read_b);
+
+  //offset_a = MulExpr::create(ConstantExpr::create(1, Expr::Int64), element_size);
+  //offset_b = MulExpr::create(ConstantExpr::create(1, Expr::Int64), element_size);
+  //read_a = os1->read(offset_a, element_size->getZExtValue()*8);
+  //read_b = os2->read(offset_b, element_size->getZExtValue()*8);
+  //condition = AndExpr::create(condition, EqExpr::create(read_a, read_b));
+
+  //offset_a = MulExpr::create(ConstantExpr::create(2, Expr::Int64), element_size);
+  //offset_b = MulExpr::create(ConstantExpr::create(2, Expr::Int64), element_size);
+  //read_a = os1->read(offset_a, element_size->getZExtValue()*8);
+  //read_b = os2->read(offset_b, element_size->getZExtValue()*8);
+  //condition = AndExpr::create(condition, EqExpr::create(read_a, read_b));
+
+  executor.addConstraint(state, condition);
+}
+
+std::vector<std::vector<unsigned> > SpecialFunctionHandler::generatePermutationIndices(unsigned length) {
+  std::vector<std::vector<unsigned> > v;
+  std::vector<unsigned> indices;
+  
+  // First fill up indices vector with all values 0 to length-1
+  for (unsigned i = 0; i < length; i++) {
+    indices.push_back(i);
+  }
+
+  // Now add all permutations of indices into result v
+  do {
+    v.push_back(indices);
+  } while (std::next_permutation(indices.begin(), indices.end()));
+
+  return v;
+}
+
+ref<Expr> SpecialFunctionHandler::generatePermutationCondition(const ObjectState *a, const ObjectState *b, std::vector<unsigned> *perm, ref<ConstantExpr> element_size) {
+  ref<Expr> perm_cond = EqExpr::create(ConstantExpr::create(0, Expr::Int64), ConstantExpr::create(0, Expr::Int64));
+  for (int i = 0; i < perm->size(); ++i) {
+    ref<Expr> offset_a = MulExpr::create(ConstantExpr::create(i, Expr::Int64), element_size);
+    ref<Expr> offset_b = MulExpr::create(ConstantExpr::create(perm->at(i), Expr::Int64), element_size);
+    ref<Expr> read_a = a->read(offset_a, element_size->getZExtValue()*8);
+    ref<Expr> read_b = b->read(offset_b, element_size->getZExtValue()*8);
+    ref<Expr> condition = EqExpr::create(read_a, read_b);
+
+    perm_cond = AndExpr::create(perm_cond, condition);
+  }
+
+  return perm_cond;
 }
 
 void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,

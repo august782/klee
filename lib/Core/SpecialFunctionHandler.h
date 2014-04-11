@@ -15,6 +15,8 @@
 #include <vector>
 #include <string>
 
+#include "Memory.h"
+
 namespace llvm {
   class Function;
 }
@@ -91,6 +93,9 @@ namespace klee {
     /* Convenience routines */
 
     std::string readStringAtAddress(ExecutionState &state, ref<Expr> address);
+
+    std::vector<std::vector<unsigned> > generatePermutationIndices(unsigned length);
+    ref<Expr> generatePermutationCondition(const ObjectState *a, const ObjectState *b, std::vector<unsigned> *perm, ref<ConstantExpr> element_size);
     
     /* Handlers */
 
@@ -114,6 +119,7 @@ namespace klee {
     HANDLER(handleGetValue);
     HANDLER(handleIsSymbolic);
     HANDLER(handleMakeSymbolic);
+    HANDLER(handlePermutate);
     HANDLER(handleMalloc);
     HANDLER(handleMarkGlobal);
     HANDLER(handleMerge);

@@ -34,6 +34,8 @@ extern "C" {
   /// output files, etc.
   void klee_make_symbolic(void *addr, size_t nbytes, const char *name);
 
+  void klee_permutate(void *addr1, void *addr2, size_t length, size_t element_size);
+
   /// klee_range - Construct a symbolic value in the signed interval
   /// [begin,end).
   ///
