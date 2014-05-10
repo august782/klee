@@ -66,20 +66,27 @@ char* toString(set *s) {
     return str;
 }
 
+void testSetToStringFlaky() {
+    set *s = makeSet();
+    add(s, 3);
+    add(s, 2);
+    add(s, 5);
+    add(s, 0);
+
+    assert(strcmp(toString(s), "3 2 5 0 ") == 0);
+}
+
 void testSetToString() {
     set *s = makeSet();
     add(s, 3);
     add(s, 2);
     add(s, 5);
     add(s, 0);
-    printf("%d\n", s->values[0]);
-    printf("%d\n", s->values[1]);
-    printf("%d\n", s->values[2]);
-    printf("%d\n", s->values[3]);
 
-    assert(strcmp(toString(s), "3 2 5 0 ") == 0);
+    assert(strlen(toString(s)) == 8);
 }
 
 int main(int argc, char **argv) {
+    testSetToStringFlaky();
     testSetToString();
 }
